@@ -9,9 +9,9 @@ public record MembroResponseDTO(
         String nome,
         String email,
         LocalDate dataNascimento,
-        PlanoInfoDTO plano // 3. Este campo continua aqui
+        PlanoInfoDTO plano
 ) {
-    // Construtor auxiliar (continua igual)
+
     public MembroResponseDTO(Long id, String nome, String email, LocalDate dataNascimento) {
         this(id, nome, email, dataNascimento, null);
     }

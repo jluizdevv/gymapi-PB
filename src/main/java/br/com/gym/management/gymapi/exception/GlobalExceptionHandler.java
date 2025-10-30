@@ -15,10 +15,10 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
 
-    @ExceptionHandler(RecursoNaoEncontradoException.class) // 1.
-    @ResponseStatus(HttpStatus.NOT_FOUND) // 2.
+    @ExceptionHandler(RecursoNaoEncontradoException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
     public ResponseEntity<String> handleRecursoNaoEncontrado(RecursoNaoEncontradoException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage()); // 3.
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ex.getMessage());
     }
 
 
