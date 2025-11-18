@@ -4,7 +4,7 @@ import java.time.LocalDate;
 
 
 public record PlanoInfoDTO(
-        String nome,
+        Long planoId,
         LocalDate dataFimInscricao,
         Boolean inscricaoAtiva
 ) {}

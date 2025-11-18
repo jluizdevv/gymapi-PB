@@ -20,15 +20,13 @@ public class Inscricao {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-
     @ManyToOne
     @JoinColumn(name = "membro_id", nullable = false)
     private Membro membro;
 
 
-    @ManyToOne
-    @JoinColumn(name = "plano_id", nullable = false)
-    private Plano plano;
+    @Column(name = "plano_id", nullable = false)
+    private Long planoId;
 
     @Column(nullable = false)
     private LocalDate dataInicio;

@@ -1,19 +1,19 @@
 package br.com.gym.management.gymapi.service;
 
+import br.com.gym.management.gymapi.client.PlanoClient;
 import br.com.gym.management.gymapi.domain.Inscricao;
 import br.com.gym.management.gymapi.domain.Membro;
-import br.com.gym.management.gymapi.domain.Plano;
 import br.com.gym.management.gymapi.dto.MembroAuditoriaDTO;
 import br.com.gym.management.gymapi.dto.MembroRequestDTO;
 import br.com.gym.management.gymapi.dto.MembroResponseDTO;
 import br.com.gym.management.gymapi.dto.MembroUpdateRequestDTO;
+import br.com.gym.management.gymapi.dto.PlanoDTO;
 import br.com.gym.management.gymapi.dto.PlanoInfoDTO;
 import br.com.gym.management.gymapi.dto.RevisaoDTO;
 import br.com.gym.management.gymapi.exception.RecursoNaoEncontradoException;
 import br.com.gym.management.gymapi.exception.RegraDeNegocioException;
 import br.com.gym.management.gymapi.repository.InscricaoRepository;
 import br.com.gym.management.gymapi.repository.MembroRepository;
-import br.com.gym.management.gymapi.repository.PlanoRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.history.Revision;
@@ -32,15 +32,15 @@ import java.util.stream.Collectors;
 public class MembroService {
 
     private final MembroRepository membroRepository;
-    private final PlanoRepository planoRepository;
     private final InscricaoRepository inscricaoRepository;
+    private final PlanoClient planoClient; // Substitui o PlanoRepository
 
     public MembroService(MembroRepository membroRepository,
-                         PlanoRepository planoRepository,
-                         InscricaoRepository inscricaoRepository) {
+                         InscricaoRepository inscricaoRepository,
+                         PlanoClient planoClient) {
         this.membroRepository = membroRepository;
-        this.planoRepository = planoRepository;
         this.inscricaoRepository = inscricaoRepository;
+        this.planoClient = planoClient;
     }
 
     @Transactional
@@ -48,8 +48,14 @@ public class MembroService {
 
         validarDuplicidade(requestDTO.email(), requestDTO.cpf());
 
-        Plano plano = planoRepository.findById(requestDTO.planoId())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Plano não encontrado com ID: " + requestDTO.planoId()));
+
+        PlanoDTO planoDTO;
+        try {
+            planoDTO = planoClient.buscarPlanoPorId(requestDTO.planoId());
+        } catch (Exception e) {
+
+            throw new RecursoNaoEncontradoException("Plano não encontrado com ID: " + requestDTO.planoId());
+        }
 
         Membro novoMembro = new Membro();
         novoMembro.setNome(requestDTO.nome());
@@ -59,12 +65,14 @@ public class MembroService {
 
         Membro membroSalvo = membroRepository.save(novoMembro);
 
+
         Inscricao novaInscricao = new Inscricao();
         novaInscricao.setMembro(membroSalvo);
-        novaInscricao.setPlano(plano);
+        novaInscricao.setPlanoId(planoDTO.id());
         novaInscricao.setDataInicio(LocalDate.now());
 
-        LocalDate dataFim = LocalDate.now().plusMonths(plano.getDuracaoEmMeses());
+
+        LocalDate dataFim = LocalDate.now().plusMonths(planoDTO.duracaoEmMeses());
         novaInscricao.setDataFim(dataFim);
         novaInscricao.setAtiva(true);
 
@@ -143,7 +151,7 @@ public class MembroService {
         PlanoInfoDTO planoInfo = null;
         if (inscricao != null) {
             planoInfo = new PlanoInfoDTO(
-                    inscricao.getPlano().getNome(),
+                    inscricao.getPlanoId(),
                     inscricao.getDataFim(),
                     inscricao.getAtiva()
             );
