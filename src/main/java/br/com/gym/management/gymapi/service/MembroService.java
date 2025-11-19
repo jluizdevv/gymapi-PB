@@ -1,18 +1,18 @@
 package br.com.gym.management.gymapi.service;
 
 import br.com.gym.management.gymapi.client.PlanoClient;
-import br.com.gym.management.gymapi.domain.Inscricao;
 import br.com.gym.management.gymapi.domain.Membro;
+import br.com.gym.management.gymapi.dto.InscricaoDTO;
 import br.com.gym.management.gymapi.dto.MembroAuditoriaDTO;
 import br.com.gym.management.gymapi.dto.MembroRequestDTO;
 import br.com.gym.management.gymapi.dto.MembroResponseDTO;
 import br.com.gym.management.gymapi.dto.MembroUpdateRequestDTO;
-import br.com.gym.management.gymapi.dto.PlanoDTO;
 import br.com.gym.management.gymapi.dto.PlanoInfoDTO;
 import br.com.gym.management.gymapi.dto.RevisaoDTO;
+import br.com.gym.management.gymapi.events.InscricaoCriadaEvent;
 import br.com.gym.management.gymapi.exception.RecursoNaoEncontradoException;
 import br.com.gym.management.gymapi.exception.RegraDeNegocioException;
-import br.com.gym.management.gymapi.repository.InscricaoRepository;
+import br.com.gym.management.gymapi.messaging.InscricaoPublisher;
 import br.com.gym.management.gymapi.repository.MembroRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -26,20 +26,21 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
 public class MembroService {
 
     private final MembroRepository membroRepository;
-    private final InscricaoRepository inscricaoRepository;
-    private final PlanoClient planoClient; // Substitui o PlanoRepository
+    private final InscricaoPublisher inscricaoPublisher;
+    private final PlanoClient planoClient;
 
     public MembroService(MembroRepository membroRepository,
-                         InscricaoRepository inscricaoRepository,
+                         InscricaoPublisher inscricaoPublisher,
                          PlanoClient planoClient) {
         this.membroRepository = membroRepository;
-        this.inscricaoRepository = inscricaoRepository;
+        this.inscricaoPublisher = inscricaoPublisher;
         this.planoClient = planoClient;
     }
 
@@ -47,15 +48,6 @@ public class MembroService {
     public MembroResponseDTO cadastrarMembro(MembroRequestDTO requestDTO) {
 
         validarDuplicidade(requestDTO.email(), requestDTO.cpf());
-
-
-        PlanoDTO planoDTO;
-        try {
-            planoDTO = planoClient.buscarPlanoPorId(requestDTO.planoId());
-        } catch (Exception e) {
-
-            throw new RecursoNaoEncontradoException("Plano não encontrado com ID: " + requestDTO.planoId());
-        }
 
         Membro novoMembro = new Membro();
         novoMembro.setNome(requestDTO.nome());
@@ -65,20 +57,18 @@ public class MembroService {
 
         Membro membroSalvo = membroRepository.save(novoMembro);
 
+        InscricaoCriadaEvent evento = new InscricaoCriadaEvent(
+                membroSalvo.getId(),
+                requestDTO.planoId(),
+                membroSalvo.getDataNascimento(),
+                membroSalvo.getEmail(),
+                LocalDate.now(),
+                membroSalvo.getNome()
+        );
 
-        Inscricao novaInscricao = new Inscricao();
-        novaInscricao.setMembro(membroSalvo);
-        novaInscricao.setPlanoId(planoDTO.id());
-        novaInscricao.setDataInicio(LocalDate.now());
+        inscricaoPublisher.publicarEventoInscricaoCriada(evento);
 
-
-        LocalDate dataFim = LocalDate.now().plusMonths(planoDTO.duracaoEmMeses());
-        novaInscricao.setDataFim(dataFim);
-        novaInscricao.setAtiva(true);
-
-        Inscricao inscricaoSalva = inscricaoRepository.save(novaInscricao);
-
-        return paraResponseDTO(membroSalvo, inscricaoSalva);
+        return paraResponseDTO(membroSalvo, null);
     }
 
     @Transactional(readOnly = true)
@@ -86,9 +76,16 @@ public class MembroService {
         Membro membro = membroRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Membro não encontrado com ID: " + id));
 
-        Inscricao inscricao = inscricaoRepository.findByMembroIdAndAtivaTrue(id).orElse(null);
+        Optional<InscricaoDTO> inscricaoDTOOptional = Optional.empty();
+        try {
+            inscricaoDTOOptional = planoClient.buscarInscricaoAtivaPorMembroId(id);
+        } catch (Exception e) {
+            System.err.println("Erro ao buscar inscrição ativa no plan-api: " + e.getMessage());
+        }
 
-        return paraResponseDTO(membro, inscricao);
+        InscricaoDTO inscricaoDTO = inscricaoDTOOptional.orElse(null);
+
+        return paraResponseDTO(membro, inscricaoDTO);
     }
 
     @Transactional
@@ -112,18 +109,14 @@ public class MembroService {
 
         Membro membroAtualizado = membroRepository.save(membro);
 
-        Inscricao inscricao = inscricaoRepository.findByMembroIdAndAtivaTrue(id).orElse(null);
-        return paraResponseDTO(membroAtualizado, inscricao);
+        return paraResponseDTO(membroAtualizado, null);
     }
 
     @Transactional(readOnly = true)
     public Page<MembroResponseDTO> findAll(Pageable pageable) {
         Page<Membro> pageMembros = membroRepository.findAll(pageable);
 
-        return pageMembros.map(membro -> {
-            Inscricao inscricao = inscricaoRepository.findByMembroIdAndAtivaTrue(membro.getId()).orElse(null);
-            return paraResponseDTO(membro, inscricao);
-        });
+        return pageMembros.map(membro -> paraResponseDTO(membro, null));
     }
 
     @Transactional
@@ -131,9 +124,6 @@ public class MembroService {
         if (!membroRepository.existsById(id)) {
             throw new RecursoNaoEncontradoException("Membro não encontrado com ID: " + id);
         }
-
-        List<Inscricao> inscricoes = inscricaoRepository.findAllByMembroId(id);
-        inscricaoRepository.deleteAll(inscricoes);
 
         membroRepository.deleteById(id);
     }
@@ -147,13 +137,14 @@ public class MembroService {
         }
     }
 
-    private MembroResponseDTO paraResponseDTO(Membro membro, Inscricao inscricao) {
+    private MembroResponseDTO paraResponseDTO(Membro membro, InscricaoDTO inscricaoDTO) {
         PlanoInfoDTO planoInfo = null;
-        if (inscricao != null) {
+
+        if (inscricaoDTO != null && inscricaoDTO.plano() != null) {
             planoInfo = new PlanoInfoDTO(
-                    inscricao.getPlanoId(),
-                    inscricao.getDataFim(),
-                    inscricao.getAtiva()
+                    inscricaoDTO.plano().id(),
+                    inscricaoDTO.dataFim(),
+                    inscricaoDTO.ativa()
             );
         }
 
