@@ -27,9 +27,6 @@ class MembroServiceTest {
     private MembroRepository membroRepository;
 
     @Mock
-    private InscricaoRepository inscricaoRepository;
-
-    @Mock
     private PlanoClient planoClient;
 
 
@@ -47,10 +44,10 @@ class MembroServiceTest {
     @Test
     @DisplayName("Deve lançar exceção ao tentar cadastrar e-mail duplicado")
     void quandoEmailDuplicado_deveLancarRegraDeNegocioException() {
-        // Arrange
+        
         when(membroRepository.findByEmail(anyString())).thenReturn(Optional.of(new Membro()));
 
-        // Act & Assert
+
         assertThrows(RegraDeNegocioException.class, () -> {
             membroService.cadastrarMembro(requestDTO);
         });
@@ -78,7 +75,7 @@ class MembroServiceTest {
         verify(inscricaoPublisher, times(1)).publicarEventoInscricaoCriada(any(InscricaoCriadaEvent.class));
 
         verify(planoClient, never()).buscarPlanoPorId(anyLong());
-        verify(inscricaoRepository, never()).save(any(Inscricao.class));
+
     }
 
 }

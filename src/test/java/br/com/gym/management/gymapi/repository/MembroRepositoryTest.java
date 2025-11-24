@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
-import org.springframework.test.context.bean.override.mockito.MockitoBean; // <<< NOVA IMPORTAÇÃO
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.LocalDate;
 import java.util.Optional;
@@ -20,9 +20,6 @@ class MembroRepositoryTest {
     @MockitoBean
     private PlanoClient planoClient;
 
-
-    @MockitoBean
-    private InscricaoRepository inscricaoRepository;
 
     @Autowired
     private TestEntityManager entityManager;
