@@ -1,7 +1,4 @@
 package br.com.gym.management.gymapi;
-// Comentário para acionar o CI/CD
-// Comentário para acionar o CI/CD// Comentário para acionar o CI/CD
-
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
