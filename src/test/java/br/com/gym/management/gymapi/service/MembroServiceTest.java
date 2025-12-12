@@ -44,7 +44,7 @@ class MembroServiceTest {
     @Test
     @DisplayName("Deve lançar exceção ao tentar cadastrar e-mail duplicado")
     void quandoEmailDuplicado_deveLancarRegraDeNegocioException() {
-        
+
         when(membroRepository.findByEmail(anyString())).thenReturn(Optional.of(new Membro()));
 
 
